@@ -5,6 +5,19 @@
 main.py
 
 Flask-based Web UI & API for WhatsApp Number Checker.
+
+Provides:
+ - GET  /        → HTML form with purple gradient, animated button
+ - POST /check   → Accepts comma-separated numbers, runs Selenium check, renders results
+ - JSON support if “Accept: application/json” in headers
+
+Usage (development):
+  export CHROME_BIN="/usr/bin/chromium"
+  export PORT=5000
+  python main.py
+
+In Docker/Render:
+  PORT injected by environment (default 5000)
 """
 
 import os
@@ -18,7 +31,7 @@ INDEX_HTML = """
 <html>
 <head>
   <meta charset="utf-8">
-  <title>WhatsApp Checker</title>
+  <title>WhatsApp Number Checker</title>
   <style>
     body {
       margin: 0; font-family: Arial, sans-serif;
@@ -78,21 +91,30 @@ def home():
 
 @app.route("/check", methods=["POST"])
 def check():
+    # Parse comma-separated input
     data = request.form.get("numbers", "")
     numbers = [n.strip() for n in data.split(",") if n.strip()]
+
+    # Get Chromium binary path from environment
     chrome_bin = os.getenv("CHROME_BIN")
+
+    # Perform the WhatsApp registration check
     registered, not_registered = check_numbers(numbers, chrome_bin=chrome_bin)
 
+    # Return JSON if requested
     if request.headers.get("Accept", "").lower().startswith("application/json"):
         return jsonify({
             "registered": registered,
             "not_registered": not_registered
         })
+
+    # Otherwise render HTML with results
     return render_template_string(
         INDEX_HTML,
         result={"registered": registered, "not_registered": not_registered}
     )
 
 if __name__ == "__main__":
+    # Listen on all interfaces, port from environment or default 5000
     port = int(os.getenv("PORT", "5000"))
     app.run(host="0.0.0.0", port=port)
