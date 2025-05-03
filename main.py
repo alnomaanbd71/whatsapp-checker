@@ -4,25 +4,33 @@
 """
 main.py
 
-Flask-based Web UI & API for WhatsApp Number Checker.
+Flask-based Web UI & API for WhatsApp Number Checker, using webdriver-manager
+to install the correct ChromeDriver at runtime.
 
-Provides:
- - GET  /        → HTML form with purple gradient, animated button
+Endpoints:
+ - GET  /        → HTML form with purple gradient & animated button
  - POST /check   → Accepts comma-separated numbers, runs Selenium check, renders results
  - JSON support if “Accept: application/json” in headers
 
 Usage (development):
-  export CHROME_BIN="/usr/bin/chromium"
   export PORT=5000
+  export CHROME_BIN="/usr/bin/google-chrome-stable"   # or "/usr/bin/chromium"
   python main.py
 
 In Docker/Render:
-  PORT injected by environment (default 5000)
+  PORT injected by environment
 """
 
 import os
+import time
 from flask import Flask, request, render_template_string, jsonify
-from whatsapp_checker import check_numbers
+
+# Selenium imports
+from selenium import webdriver
+from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.chrome.service import Service
+from webdriver_manager.chrome import ChromeDriverManager
+from selenium.webdriver.common.by import By
 
 app = Flask(__name__)
 
@@ -74,10 +82,10 @@ INDEX_HTML = """
       <h3>Result:</h3>
       <pre>
 Registered:
-{{ result.registered | join('\n') }}
+{{ result.registered | join('\\n') }}
 
 Not Registered:
-{{ result.not_registered | join('\n') }}
+{{ result.not_registered | join('\\n') }}
       </pre>
     {% endif %}
   </div>
@@ -85,36 +93,65 @@ Not Registered:
 </html>
 """
 
+def check_numbers(numbers):
+    """
+    Given a list of digit-only phone numbers (no '+' prefix),
+    returns two lists: (registered, not_registered).
+    """
+    chrome_bin = os.getenv("CHROME_BIN")
+    chrome_options = Options()
+    chrome_options.add_argument("--headless")
+    chrome_options.add_argument("--no-sandbox")
+    chrome_options.add_argument("--disable-dev-shm-usage")
+    if chrome_bin:
+        chrome_options.binary_location = chrome_bin
+
+    # Use webdriver-manager to install matching ChromeDriver
+    service = Service(ChromeDriverManager().install())
+    driver = webdriver.Chrome(service=service, options=chrome_options)
+
+    # Navigate to WhatsApp Web and wait for QR scan
+    driver.get("https://web.whatsapp.com/")
+    print("Please scan the QR code in WhatsApp Web and press Enter in the console...")
+    input()
+
+    registered = []
+    not_registered = []
+
+    for num in numbers:
+        driver.get(f"https://web.whatsapp.com/send?phone={num}&text=&app_absent=0")
+        time.sleep(5)
+        try:
+            driver.find_element(By.CSS_SELECTOR, "div[data-testid='alert-phone-number']")
+            not_registered.append(f"+{num}")
+        except:
+            registered.append(f"+{num}")
+
+    driver.quit()
+    return registered, not_registered
+
 @app.route("/", methods=["GET"])
 def home():
     return render_template_string(INDEX_HTML)
 
 @app.route("/check", methods=["POST"])
 def check():
-    # Parse comma-separated input
     data = request.form.get("numbers", "")
     numbers = [n.strip() for n in data.split(",") if n.strip()]
 
-    # Get Chromium binary path from environment
-    chrome_bin = os.getenv("CHROME_BIN")
+    registered, not_registered = check_numbers(numbers)
 
-    # Perform the WhatsApp registration check
-    registered, not_registered = check_numbers(numbers, chrome_bin=chrome_bin)
-
-    # Return JSON if requested
     if request.headers.get("Accept", "").lower().startswith("application/json"):
         return jsonify({
             "registered": registered,
             "not_registered": not_registered
         })
 
-    # Otherwise render HTML with results
     return render_template_string(
         INDEX_HTML,
         result={"registered": registered, "not_registered": not_registered}
     )
 
 if __name__ == "__main__":
-    # Listen on all interfaces, port from environment or default 5000
     port = int(os.getenv("PORT", "5000"))
     app.run(host="0.0.0.0", port=port)
