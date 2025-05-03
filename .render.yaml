@@ -1,9 +1,9 @@
 services:
-  - type: worker
-    name: whatsapp-checker-worker
+  - type: web
+    name: whatsapp-web
     env: container
     plan: free
-    repo: https://github.com/alnomaanbd71/whatsapp-checker
+    repo: https://github.com/<your-username>/whatsapp-checker
     branch: main
-    buildCommand: "docker build -t whatsapp-checker ."
-    startCommand: "docker run -e PHONE_LIST=93777670441,93771228985,… whatsapp-checker"
+    buildCommand: "docker build -t whatsapp-web ."
+    startCommand: "docker run -p 10000:$PORT whatsapp-web"
