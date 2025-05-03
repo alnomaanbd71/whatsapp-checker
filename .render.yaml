@@ -1,15 +1,10 @@
+# render.yaml কনফিগারেশন (যদি ব্যবহার করেন)
 services:
   - type: web
-    name: whatsapp-checker
+    name: my-chrome-app
     env: docker
-    dockerfile: Dockerfile
-    branch: main
-    plan: standard
+    buildCommand: docker build -t my-chrome-app .
+    startCommand: docker run -it --rm my-chrome-app
     envVars:
-      - key: DISPLAY
-        value: ":99"
-    autoDeploy: yes
-    healthCheckPath: /
-    resources:
-      memory: 2GB
-      disk: 1GB
+      - key: DEBIAN_FRONTEND
+        value: noninteractive
