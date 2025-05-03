@@ -1,14 +1,13 @@
 # Dockerfile
 
-# 1. Base image
 FROM python:3.11-slim
 
-# 2. Install Chromium, Chromedriver, Xvfb, xauth and required libs
+# Install Chromium, Chromedriver, Xvfb, xauth, and necessary libraries
 RUN apt-get update && apt-get install -y --no-install-recommends \
     chromium \
     chromium-driver \
     xvfb \
-    x11-xauth \                  # ← provides the xauth command
+    x11-xauth \
     libxi6 \
     libgconf-2-4 \
     libnss3 \
@@ -30,20 +29,17 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     xdg-utils \
   && rm -rf /var/lib/apt/lists/*
 
-# 3. Set working directory
 WORKDIR /app
 
-# 4. Copy application code
 COPY . /app
 
-# 5. Install Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
-# 6. Environment variable for Selenium
+# Tell Selenium where to find Chromium
 ENV CHROME_BIN=/usr/bin/chromium
 
-# 7. Expose Flask port
+# Expose the Flask listening port
 EXPOSE 5000
 
-# 8. Default command: run Flask under Xvfb
+# Start the Flask app under Xvfb
 CMD ["xvfb-run", "--server-args=-screen 0 1024x768x24", "python", "main.py"]
