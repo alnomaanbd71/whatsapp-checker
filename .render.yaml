@@ -1,10 +1,10 @@
 services:
   - type: web
-    name: whatsapp-web
-    env: container
-    plan: free
-    repo: https://github.com/<your-username>/whatsapp-checker
+    name: whatsapp-checker
+    env: docker
+    dockerfile: Dockerfile
     branch: main
-    buildCommand: docker build -t whatsapp-web .
-    # Run the Flask app inside the container; Render will inject PORT and bind it
-    startCommand: xvfb-run --server-args=-screen 0 1024x768x24 python main.py
+    plan: standard
+    envVars:
+      - key: DISPLAY
+        value: ":99"
