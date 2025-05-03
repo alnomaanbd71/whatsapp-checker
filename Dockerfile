@@ -2,10 +2,10 @@
 
 FROM python:3.11-slim
 
-# Install Chromium, Chromedriver, Xvfb, xauth, and necessary libraries
+# 1. Install Chromium Browser, ChromeDriver, Xvfb, xauth and required libraries
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    chromium \
-    chromium-driver \
+    chromium-browser \
+    chromium-chromedriver \
     xvfb \
     x11-xauth \
     libxi6 \
@@ -29,17 +29,20 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     xdg-utils \
   && rm -rf /var/lib/apt/lists/*
 
+# 2. Set working directory
 WORKDIR /app
 
+# 3. Copy application code
 COPY . /app
 
+# 4. Install Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Tell Selenium where to find Chromium
-ENV CHROME_BIN=/usr/bin/chromium
+# 5. Tell Selenium where to find the Chromium binary
+ENV CHROME_BIN=/usr/bin/chromium-browser
 
-# Expose the Flask listening port
+# 6. Expose the Flask listening port
 EXPOSE 5000
 
-# Start the Flask app under Xvfb
+# 7. Default command: run Flask under Xvfb
 CMD ["xvfb-run", "--server-args=-screen 0 1024x768x24", "python", "main.py"]
