@@ -1,42 +1,52 @@
-# whatsapp_checker.py
-
-import time
+from fastapi import FastAPI, UploadFile, File, Request
+from fastapi.responses import FileResponse, HTMLResponse
+from fastapi.staticfiles import StaticFiles
+from fastapi.templating import Jinja2Templates
+import pandas as pd
+import uuid
 from selenium import webdriver
+from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.by import By
+from selenium.common.exceptions import TimeoutException
+import os
 
-def check_numbers(numbers, chrome_bin=None):
-    """
-    Takes a list of strings (digits-only, no '+'). Returns two lists:
-      (registered_numbers, not_registered_numbers)
-    """
-    # set up headless Chrome/Chromium
-    opts = Options()
-    opts.add_argument("--headless")
-    opts.add_argument("--no-sandbox")
-    opts.add_argument("--disable-dev-shm-usage")
-    if chrome_bin:
-        opts.binary_location = chrome_bin
+app = FastAPI()
+app.mount("/static", StaticFiles(directory="static"), name="static")
+templates = Jinja2Templates(directory="templates")
 
-    driver = webdriver.Chrome(options=opts)
-
-    # login
-    driver.get("https://web.whatsapp.com/")
-    print("QR code for WhatsApp Web — scan and then press Enter")
-    input()
-
-    registered = []
-    not_registered = []
-
+def check_whatsapp_numbers(numbers, task_id):
+    os.makedirs('/tmp', exist_ok=True)
+    
+    chrome_options = Options()
+    chrome_options.add_argument("--headless")
+    chrome_options.add_argument("--no-sandbox")
+    chrome_options.add_argument("--disable-dev-shm-usage")
+    
+    driver = webdriver.Chrome(
+        service=Service('/usr/local/bin/chromedriver'),
+        options=chrome_options
+    )
+    
+    registered, not_registered = [], []
+    
     for num in numbers:
-        url = f"https://web.whatsapp.com/send?phone={num}&text=&app_absent=0"
-        driver.get(url)
-        time.sleep(5)
         try:
-            driver.find_element(By.CSS_SELECTOR, "div[data-testid='alert-phone-number']")
-            not_registered.append(f"+{num}")
-        except:
-            registered.append(f"+{num}")
-
+            driver.get(f"https://wa.me/{num}")
+            WebDriverWait(driver, 10).until(
+                EC.presence_of_element_located((By.TAG_NAME, "body"))
+            )
+            if "invalid" in driver.page_source.lower():
+                not_registered.append(num)
+            else:
+                registered.append(num)
+        except TimeoutException:
+            not_registered.append(num)
+    
     driver.quit()
-    return registered, not_registered
+    
+    df = pd.DataFrame({
+        "Registered": registered,
+        "Not Registered": not
