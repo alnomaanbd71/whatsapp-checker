@@ -1,76 +1,98 @@
-# main.py
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+"""
+main.py
+
+Flask-based Web UI & API for WhatsApp Number Checker.
+"""
 
 import os
-from flask import Flask, request, render_template_string, jsonify, current_app
+from flask import Flask, request, render_template_string, jsonify
 from whatsapp_checker import check_numbers
 
 app = Flask(__name__)
 
-# Simple HTML template with purple gradient & animated button
-INDEX_HTML = 
-!doctype html
-html
-head
-  titleWhatsApp Checkertitle
-  style
-    body { margin0; font-familysans-serif;
-      background linear-gradient(135deg, #7f00ff, #e100ff);
-      height100vh; displayflex; align-itemscenter; justify-contentcenter;
+INDEX_HTML = """
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>WhatsApp Checker</title>
+  <style>
+    body {
+      margin: 0; font-family: Arial, sans-serif;
+      background: linear-gradient(135deg, #7f00ff, #e100ff);
+      height: 100vh; display: flex;
+      align-items: center; justify-content: center;
     }
     .card {
-      backgroundwhite; padding2rem; border-radius1rem;
-      box-shadow0 10px 30px rgba(0,0,0,0.1); width90%; max-width400px;
+      background: #fff; padding: 2rem; border-radius: 1rem;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+      width: 90%; max-width: 400px; text-align: center;
     }
-    textarea { width100%; height100px; margin-bottom1rem; padding0.5rem; }
+    textarea {
+      width: 100%; height: 100px; margin-bottom: 1rem;
+      padding: 0.5rem; font-size: 1rem; border: 1px solid #ccc;
+      border-radius: 0.5rem; resize: vertical;
+    }
     button {
-      width100%; padding0.75rem; font-size1rem; bordernone; colorwhite;
-      background linear-gradient(90deg, #9c27b0, #e040fb);
-      border-radius0.5rem; cursorpointer; transitiontransform .2s;
+      width: 100%; padding: 0.75rem; font-size: 1rem;
+      border: none; color: #fff;
+      background: linear-gradient(90deg, #9c27b0, #e040fb);
+      border-radius: 0.5rem; cursor: pointer;
+      transition: transform .2s;
     }
-    buttonhover { transformscale(1.03); }
-    pre { background#f4f4f4; padding1rem; border-radius0.5rem; overflowauto; }
-  style
-head
-body
-  div class=card
-    h2WhatsApp Number Checkerh2
-    form method=post action=check
-      textarea name=numbers placeholder=e.g. 93777670441,93771228985,…textarea
-      button type=submitCheck Numbersbutton
-    form
+    button:hover { transform: scale(1.03); }
+    pre {
+      background: #f4f4f4; padding: 1rem; border-radius: 0.5rem;
+      text-align: left; overflow-x: auto; margin-top: 1rem;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h2>WhatsApp Number Checker</h2>
+    <form method="post" action="/check">
+      <textarea name="numbers" placeholder="e.g. 93777670441,93771228985,…"></textarea>
+      <button type="submit">Check Numbers</button>
+    </form>
     {% if result %}
-      h3Resulth3
-      preRegisteredn{{ result.registeredjoin('n') }}
-Not Registeredn{{ result.not_registeredjoin('n') }}pre
+      <h3>Result:</h3>
+      <pre>
+Registered:
+{{ result.registered | join('\n') }}
+
+Not Registered:
+{{ result.not_registered | join('\n') }}
+      </pre>
     {% endif %}
-  div
-body
-html
+  </div>
+</body>
+</html>
+"""
 
-
-@app.route(, methods=[GET])
-def home()
+@app.route("/", methods=["GET"])
+def home():
     return render_template_string(INDEX_HTML)
 
-@app.route(check, methods=[POST])
-def check()
-    data = request.form.get(numbers, )
-    nums = [n.strip() for n in data.split(,) if n.strip()]
-    chrome_bin = os.getenv(CHROME_BIN)  # from Dockerfile env
-    registered, not_registered = check_numbers(nums, chrome_bin=chrome_bin)
-    # If AJAXJSON desired
-    if request.headers.get(Accept,).startswith(applicationjson)
+@app.route("/check", methods=["POST"])
+def check():
+    data = request.form.get("numbers", "")
+    numbers = [n.strip() for n in data.split(",") if n.strip()]
+    chrome_bin = os.getenv("CHROME_BIN")
+    registered, not_registered = check_numbers(numbers, chrome_bin=chrome_bin)
+
+    if request.headers.get("Accept", "").lower().startswith("application/json"):
         return jsonify({
-            registered registered,
-            not_registered not_registered
+            "registered": registered,
+            "not_registered": not_registered
         })
-    # else re-render UI with result
     return render_template_string(
         INDEX_HTML,
-        result={registered registered, not_registered not_registered}
+        result={"registered": registered, "not_registered": not_registered}
     )
 
-if __name__ == __main__
-    port = int(os.environ.get(PORT, 5000))
-    # listen on all interfaces
-    app.run(host=0.0.0.0, port=port)
+if __name__ == "__main__":
+    port = int(os.getenv("PORT", "5000"))
+    app.run(host="0.0.0.0", port=port)
