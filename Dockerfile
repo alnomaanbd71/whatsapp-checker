@@ -1,33 +1,42 @@
-FROM python:3.9-slim-bullseye
+# Use an official Ubuntu base image
+FROM ubuntu:20.04
 
-# Install system dependencies
-RUN apt-get update && apt-get install -y \
-    curl gnupg wget unzip \
-    && curl -sSL https://dl.google.com/linux/linux_signing_key.pub | apt-key add - \
-    && echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" > /etc/apt/sources.list.d/google-chrome.list \
-    && apt-get update \
-    && apt-get install -y google-chrome-stable fonts-ipafont-gothic fonts-wqy-zenhei fonts-thai-tlwg fonts-khmeros fonts-kacst fonts-freefont-ttf \
-    && rm -rf /var/lib/apt/lists/*
+# Set environment variables to avoid interactive prompts
+ENV DEBIAN_FRONTEND=noninteractive
 
-# Install ChromeDriver
-RUN CHROME_VERSION=$(google-chrome --version | awk '{print $3}') \
-    && wget -q "https://chromedriver.storage.googleapis.com/$CHROME_VERSION/chromedriver_linux64.zip" \
-    && unzip chromedriver_linux64.zip \
-    && mv chromedriver /usr/local/bin/ \
-    && rm chromedriver_linux64.zip
+# Install necessary dependencies
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+    wget \
+    gnupg \
+    unzip \
+    ca-certificates && \
+    rm -rf /var/lib/apt/lists/*
 
-# Install Python dependencies
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+# Install Google Chrome
+RUN wget -q -O - https://dl-ssl.google.com/linux/linux_signing_key.pub | apt-key add - && \
+    echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" >> /etc/apt/sources.list.d/google-chrome.list && \
+    apt-get update -qqy --fix-missing && \
+    apt-get -qqy install google-chrome-stable && \
+    rm -rf /var/lib/apt/lists/*
 
-# Copy app files
-COPY . .
+# Install ChromeDriver dynamically based on Chrome version
+RUN CHROME_VERSION=$(google-chrome --version | awk '{print $3}' | cut -d'.' -f1) && \
+    wget -q "https://chromedriver.storage.googleapis.com/LATEST_RELEASE_$CHROME_VERSION" -O LATEST_RELEASE && \
+    CHROMEDRIVER_VERSION=$(cat LATEST_RELEASE) && \
+    wget -q "https://chromedriver.storage.googleapis.com/$CHROMEDRIVER_VERSION/chromedriver_linux64.zip" && \
+    unzip chromedriver_linux64.zip && \
+    mv chromedriver /usr/local/bin/ && \
+    chmod +x /usr/local/bin/chromedriver && \
+    rm chromedriver_linux64.zip LATEST_RELEASE
 
-# Create necessary directories
-RUN mkdir -p /app/static /app/templates
-COPY templates /app/templates
+# Optional: Verify installations
+RUN google-chrome --version && chromedriver --version
 
-WORKDIR /app
-
-EXPOSE 8000
-CMD ["uvicorn", "whatsapp_checker:app", "--host", "0.0.0.0", "--port", "8000"]
+# Continue with your application setup
+# (Add your application-specific steps below)
+# Example:
+# WORKDIR /app
+# COPY . .
+# RUN pip install -r requirements.txt
+# CMD ["python", "main.py"]
