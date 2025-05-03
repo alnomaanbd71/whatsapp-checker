@@ -8,3 +8,8 @@ services:
     envVars:
       - key: DISPLAY
         value: ":99"
+    autoDeploy: yes
+    healthCheckPath: /
+    resources:
+      memory: 2GB
+      disk: 1GB
