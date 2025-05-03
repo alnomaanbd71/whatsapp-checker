@@ -6,24 +6,27 @@ RUN apt-get update && apt-get install -y \
     && curl -sSL https://dl.google.com/linux/linux_signing_key.pub | apt-key add - \
     && echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" > /etc/apt/sources.list.d/google-chrome.list \
     && apt-get update \
-    && apt-get install -y google-chrome-stable \
+    && apt-get install -y google-chrome-stable fonts-ipafont-gothic fonts-wqy-zenhei fonts-thai-tlwg fonts-khmeros fonts-kacst fonts-freefont-ttf \
     && rm -rf /var/lib/apt/lists/*
 
 # Install ChromeDriver
 RUN CHROME_VERSION=$(google-chrome --version | awk '{print $3}') \
-    && wget -q "https://chromedriver.storage.googleapis.com/${CHROME_VERSION}/chromedriver_linux64.zip" \
+    && wget -q "https://chromedriver.storage.googleapis.com/$CHROME_VERSION/chromedriver_linux64.zip" \
     && unzip chromedriver_linux64.zip \
     && mv chromedriver /usr/local/bin/ \
     && rm chromedriver_linux64.zip
 
-# Install app dependencies
+# Install Python dependencies
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Create directories
+# Copy app files
+COPY . .
+
+# Create necessary directories
 RUN mkdir -p /app/static /app/templates
-COPY whatsapp_checker.py /app/
 COPY templates /app/templates
+
 WORKDIR /app
 
 EXPOSE 8000
