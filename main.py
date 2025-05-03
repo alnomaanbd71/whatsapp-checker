@@ -1,157 +1,91 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-
-"""
-main.py
-
-Flask-based Web UI & API for WhatsApp Number Checker, using webdriver-manager
-to install the correct ChromeDriver at runtime.
-
-Endpoints:
- - GET  /        → HTML form with purple gradient & animated button
- - POST /check   → Accepts comma-separated numbers, runs Selenium check, renders results
- - JSON support if “Accept: application/json” in headers
-
-Usage (development):
-  export PORT=5000
-  export CHROME_BIN="/usr/bin/google-chrome-stable"   # or "/usr/bin/chromium"
-  python main.py
-
-In Docker/Render:
-  PORT injected by environment
-"""
-
 import os
-import time
-from flask import Flask, request, render_template_string, jsonify
-
-# Selenium imports
+from flask import Flask, request, render_template_string, send_file
 from selenium import webdriver
-from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.chrome.service import Service
+from selenium.webdriver.chrome.options import Options
 from webdriver_manager.chrome import ChromeDriverManager
-from selenium.webdriver.common.by import By
+import pandas as pd
+import tempfile
 
 app = Flask(__name__)
 
-INDEX_HTML = """
-<!doctype html>
-<html>
-<head>
-  <meta charset="utf-8">
-  <title>WhatsApp Number Checker</title>
-  <style>
-    body {
-      margin: 0; font-family: Arial, sans-serif;
-      background: linear-gradient(135deg, #7f00ff, #e100ff);
-      height: 100vh; display: flex;
-      align-items: center; justify-content: center;
-    }
-    .card {
-      background: #fff; padding: 2rem; border-radius: 1rem;
-      box-shadow: 0 10px 30px rgba(0,0,0,0.1);
-      width: 90%; max-width: 400px; text-align: center;
-    }
-    textarea {
-      width: 100%; height: 100px; margin-bottom: 1rem;
-      padding: 0.5rem; font-size: 1rem; border: 1px solid #ccc;
-      border-radius: 0.5rem; resize: vertical;
-    }
-    button {
-      width: 100%; padding: 0.75rem; font-size: 1rem;
-      border: none; color: #fff;
-      background: linear-gradient(90deg, #9c27b0, #e040fb);
-      border-radius: 0.5rem; cursor: pointer;
-      transition: transform .2s;
-    }
-    button:hover { transform: scale(1.03); }
-    pre {
-      background: #f4f4f4; padding: 1rem; border-radius: 0.5rem;
-      text-align: left; overflow-x: auto; margin-top: 1rem;
-    }
-  </style>
-</head>
-<body>
-  <div class="card">
-    <h2>WhatsApp Number Checker</h2>
-    <form method="post" action="/check">
-      <textarea name="numbers" placeholder="e.g. 93777670441,93771228985,…"></textarea>
-      <button type="submit">Check Numbers</button>
-    </form>
-    {% if result %}
-      <h3>Result:</h3>
-      <pre>
-Registered:
-{{ result.registered | join('\\n') }}
+@app.route('/')
+def index():
+    return render_template_string('''
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>WhatsApp Checker</title>
+        <style>
+            body {
+                background: linear-gradient(to right, #7b2ff7, #f107a3);
+                color: white;
+                font-family: Arial, sans-serif;
+                text-align: center;
+                padding: 50px;
+            }
+            input[type=file], input[type=submit] {
+                margin-top: 20px;
+                padding: 10px;
+                border: none;
+                border-radius: 5px;
+                font-size: 16px;
+            }
+            input[type=submit] {
+                background: #fff;
+                color: #7b2ff7;
+                font-weight: bold;
+                cursor: pointer;
+                transition: all 0.3s ease;
+            }
+            input[type=submit]:hover {
+                background: #f107a3;
+                color: white;
+            }
+        </style>
+    </head>
+    <body>
+        <h1>📱 WhatsApp Number Checker</h1>
+        <form action="/check" method="post" enctype="multipart/form-data">
+            <input type="file" name="file" accept=".csv" required>
+            <br>
+            <input type="submit" value="Check WhatsApp Numbers">
+        </form>
+    </body>
+    </html>
+    ''')
 
-Not Registered:
-{{ result.not_registered | join('\\n') }}
-      </pre>
-    {% endif %}
-  </div>
-</body>
-</html>
-"""
+@app.route('/check', methods=['POST'])
+def check():
+    uploaded_file = request.files['file']
+    df = pd.read_csv(uploaded_file)
+    numbers = df['number'].astype(str).tolist()
 
-def check_numbers(numbers):
-    """
-    Given a list of digit-only phone numbers (no '+' prefix),
-    returns two lists: (registered, not_registered).
-    """
-    chrome_bin = os.getenv("CHROME_BIN")
-    chrome_options = Options()
-    chrome_options.add_argument("--headless")
-    chrome_options.add_argument("--no-sandbox")
-    chrome_options.add_argument("--disable-dev-shm-usage")
-    if chrome_bin:
-        chrome_options.binary_location = chrome_bin
+    options = Options()
+    options.add_argument('--headless')
+    options.add_argument('--no-sandbox')
+    options.add_argument('--disable-dev-shm-usage')
 
-    # Use webdriver-manager to install matching ChromeDriver
     service = Service(ChromeDriverManager().install())
-    driver = webdriver.Chrome(service=service, options=chrome_options)
+    driver = webdriver.Chrome(service=service, options=options)
 
-    # Navigate to WhatsApp Web and wait for QR scan
-    driver.get("https://web.whatsapp.com/")
-    print("Please scan the QR code in WhatsApp Web and press Enter in the console...")
-    input()
+    results = []
 
-    registered = []
-    not_registered = []
-
-    for num in numbers:
-        driver.get(f"https://web.whatsapp.com/send?phone={num}&text=&app_absent=0")
-        time.sleep(5)
-        try:
-            driver.find_element(By.CSS_SELECTOR, "div[data-testid='alert-phone-number']")
-            not_registered.append(f"+{num}")
-        except:
-            registered.append(f"+{num}")
+    for number in numbers:
+        driver.get(f"https://api.whatsapp.com/send?phone={number}")
+        if "Use WhatsApp Web" in driver.page_source:
+            results.append((number, "Registered"))
+        else:
+            results.append((number, "Not Registered"))
 
     driver.quit()
-    return registered, not_registered
 
-@app.route("/", methods=["GET"])
-def home():
-    return render_template_string(INDEX_HTML)
+    result_df = pd.DataFrame(results, columns=["Number", "Status"])
+    temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".xlsx")
+    result_df.to_excel(temp_file.name, index=False)
 
-@app.route("/check", methods=["POST"])
-def check():
-    data = request.form.get("numbers", "")
-    numbers = [n.strip() for n in data.split(",") if n.strip()]
+    return send_file(temp_file.name, as_attachment=True, download_name="whatsapp_checked.xlsx")
 
-    registered, not_registered = check_numbers(numbers)
-
-    if request.headers.get("Accept", "").lower().startswith("application/json"):
-        return jsonify({
-            "registered": registered,
-            "not_registered": not_registered
-        })
-
-    return render_template_string(
-        INDEX_HTML,
-        result={"registered": registered, "not_registered": not_registered}
-    )
-
-if __name__ == "__main__":
-    port = int(os.getenv("PORT", "5000"))
+if __name__ == '__main__':
+    port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port)
