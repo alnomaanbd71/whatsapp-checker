@@ -1,22 +1,24 @@
 # Dockerfile
 
+# 1. Base image
 FROM python:3.11-slim
 
-# 1. Install Chromium Browser, ChromeDriver, Xvfb, xauth and required libraries
+# 2. Install system dependencies, Xvfb, xauth, and Google Chrome
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    chromium-browser \
-    chromium-chromedriver \
-    xvfb \
+    wget \
+    gnupg \
     x11-xauth \
-    libxi6 \
+    xvfb \
+    fonts-liberation \
     libgconf-2-4 \
     libnss3 \
+    libxss1 \
+    libxi6 \
     libx11-xcb1 \
     libxcomposite1 \
     libxcursor1 \
     libxdamage1 \
     libxrandr2 \
-    libxss1 \
     libxtst6 \
     libatk1.0-0 \
     libatk-bridge2.0-0 \
@@ -24,25 +26,31 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libdrm2 \
     libpangocairo-1.0-0 \
     libcairo2 \
-    fonts-liberation \
     libappindicator3-1 \
     xdg-utils \
   && rm -rf /var/lib/apt/lists/*
 
-# 2. Set working directory
+# Add Google’s signing key and repo, then install Chrome
+RUN wget -q -O - https://dl.google.com/linux/linux_signing_key.pub | apt-key add - \
+  && echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" \
+       > /etc/apt/sources.list.d/google-chrome.list \
+  && apt-get update && apt-get install -y --no-install-recommends google-chrome-stable \
+  && rm -rf /var/lib/apt/lists/*
+
+# 3. Define working directory
 WORKDIR /app
 
-# 3. Copy application code
+# 4. Copy application code
 COPY . /app
 
-# 4. Install Python dependencies
+# 5. Install Python dependencies (including webdriver-manager)
 RUN pip install --no-cache-dir -r requirements.txt
 
-# 5. Tell Selenium where to find the Chromium binary
-ENV CHROME_BIN=/usr/bin/chromium-browser
+# 6. Tell Selenium where Chrome lives
+ENV CHROME_BIN=/usr/bin/google-chrome-stable
 
-# 6. Expose the Flask listening port
+# 7. Expose Flask port
 EXPOSE 5000
 
-# 7. Default command: run Flask under Xvfb
+# 8. Default command: run Flask under Xvfb
 CMD ["xvfb-run", "--server-args=-screen 0 1024x768x24", "python", "main.py"]
